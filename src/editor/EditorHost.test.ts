@@ -196,6 +196,9 @@ vi.mock("./raw/RawEditor", () => ({
     private root: HTMLElement | null = null;
     private onChange: ((text: string) => void) | null = null;
 
+    /** The fake editor has no CodeMirror attributes to configure. */
+    setSpellcheck(_enabled: boolean): void {}
+
     mount(root: HTMLElement, text: string, cb: { onChange(text: string): void; onFindChange?(): void }): void {
       this.root = root;
       this.onChange = cb.onChange;

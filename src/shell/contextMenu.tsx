@@ -1,6 +1,5 @@
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
-import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { disposeReactRoot } from "@/app/disposeReactRoot";
 import { MenuRows, menuSurfaceClassName, moveMenuFocus, type MenuItem } from "@/components/ui/menu";
@@ -12,6 +11,7 @@ interface ActiveMenu {
   root: Root;
   menu: HTMLElement;
   restoreFocus: HTMLElement | null;
+  onDismiss?: () => void;
 }
 
 let active: ActiveMenu | null = null;
@@ -21,17 +21,19 @@ export function closeContextMenu(): void {
   closeActiveMenu(true);
 }
 
-function closeActiveMenu(restoreFocus: boolean): void {
+function closeActiveMenu(restoreFocus: boolean, activated = false): void {
   if (listenerTimer) clearTimeout(listenerTimer);
   listenerTimer = null;
   document.removeEventListener("pointerdown", onPointerDown, true);
-  document.removeEventListener("keydown", onKeyDown, true);
+  window.removeEventListener("keydown", onKeyDown, true);
+  document.removeEventListener("focusin", onFocusIn);
   window.removeEventListener("blur", closeContextMenu);
   const current = active;
   active = null;
   if (!current) return;
   disposeReactRoot(current.root, current.host);
   if (restoreFocus && current.restoreFocus?.isConnected) current.restoreFocus.focus();
+  if (!activated) current.onDismiss?.();
 }
 
 export function isContextMenuOpen(): boolean {
@@ -40,6 +42,11 @@ export function isContextMenuOpen(): boolean {
 
 function onPointerDown(event: Event): void {
   if (active && !active.menu.contains(event.target as Node)) closeContextMenu();
+}
+
+/** A shortcut can move to another editor without an outside pointer click. */
+function onFocusIn(event: FocusEvent): void {
+  if (active && !active.menu.contains(event.target as Node)) closeActiveMenu(false);
 }
 
 function onKeyDown(event: KeyboardEvent): void {
@@ -59,31 +66,37 @@ function onKeyDown(event: KeyboardEvent): void {
 
 /** Open a menu of `items` at the pointer position, named `label` for screen
  *  readers, such as "Tab". It replaces any menu that is already open. */
-export function showContextMenu(x: number, y: number, items: MenuItem[], label: string): void {
+export function showContextMenu(x: number, y: number, items: MenuItem[], label: string, onDismiss?: () => void): void {
   const restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   closeActiveMenu(false);
   const host = document.createElement("div");
   host.dataset.reactContextMenu = "";
-  document.body.append(host);
+  // Radix keeps focus within the active dialog. Its context menu belongs in
+  // that same scope, including a nested dialog such as the custom dictionary.
+  const container = restoreFocus?.closest('[role="dialog"]') ?? document.body;
+  container.append(host);
   const root = createRoot(host);
   flushSync(() => {
-    root.render(<ContextMenu x={x} y={y} items={items} label={label} />);
+    root.render(<ContextMenu items={items} label={label} />);
   });
   const menu = host.querySelector<HTMLElement>(".md-context-menu");
   if (!menu) {
     disposeReactRoot(root, host);
     return;
   }
-  active = { host, root, menu, restoreFocus };
+  active = { host, root, menu, restoreFocus, onDismiss };
+  // Measure at the local origin. A translated popover establishes its own
+  // containing block for fixed children, but the pointer and limits use the viewport.
   const rect = menu.getBoundingClientRect();
-  if (rect.right > window.innerWidth)
-    menu.style.left = `${Math.max(0, window.innerWidth - rect.width - 4)}px`;
-  if (rect.bottom > window.innerHeight)
-    menu.style.top = `${Math.max(0, window.innerHeight - rect.height - 4)}px`;
-  // Escape/keyboard navigation should work as soon as the menu is visible. Only
+  const left = Math.max(0, Math.min(x, window.innerWidth - rect.width - 4));
+  const top = Math.max(0, Math.min(y, window.innerHeight - rect.height - 4));
+  menu.style.left = `${left - rect.left}px`;
+  menu.style.top = `${top - rect.top}px`;
+  // Handle Escape before a dialog's document-level handler can close it. Only
   // the outside-pointer listener is delayed so the opening right-click cannot
   // immediately close its own menu.
-  document.addEventListener("keydown", onKeyDown, true);
+  window.addEventListener("keydown", onKeyDown, true);
+  document.addEventListener("focusin", onFocusIn);
   window.addEventListener("blur", closeContextMenu);
   menu.querySelector<HTMLButtonElement>(".md-context-menu-item:not(.disabled)")?.focus();
   listenerTimer = setTimeout(() => {
@@ -93,21 +106,20 @@ export function showContextMenu(x: number, y: number, items: MenuItem[], label: 
   }, 0);
 }
 
-/** The menu element at `x`, `y`, named `label` for screen readers. Choosing a
- *  row closes the menu before the row's command runs. */
-function ContextMenu({ x, y, items, label }: { x: number; y: number; items: MenuItem[]; label: string }) {
-  const style: CSSProperties = { left: x, top: y };
+/** The menu is measured at its local origin before placement. Choosing a row
+ *  closes the menu before the row's command runs. */
+function ContextMenu({ items, label }: { items: MenuItem[]; label: string }) {
   return (
     <div
-      className={cn("md-context-menu fixed z-[1100]", menuSurfaceClassName)}
+      className={cn("md-context-menu fixed z-[1100] w-max", menuSurfaceClassName)}
       role="menu"
       aria-label={label}
-      style={style}
+      style={{ left: 0, top: 0 }}
     >
       <MenuRows
         items={items}
         onActivate={(item) => {
-          closeContextMenu();
+          closeActiveMenu(true, true);
           void item.run();
         }}
       />

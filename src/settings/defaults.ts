@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultView: "document",
   collapseBase64InRawView: true,
   spellCheckEnabled: true,
+  spellCheckLanguages: [],
   showFrontmatterPanel: true,
   maxRetainedTabEditors: 5,
 

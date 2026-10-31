@@ -8,6 +8,7 @@ import {
   Palette,
   RotateCw,
   Settings as SettingsIcon,
+  SpellCheck,
   SquarePen,
   type LucideIcon,
 } from "lucide-react";
@@ -48,6 +49,7 @@ import { layoutFromDefaultView } from "@/state/types";
 import { cn } from "@/lib/utils";
 import { AccentColorFieldView } from "./AccentColorFieldView";
 import { CheckRow, FormRow, Hint, SettingsBox, SettingsPage } from "./SettingsLayout";
+import { SpellingSettings } from "./SpellingSettings";
 import { KEYBOARD_SHORTCUTS } from "./shortcuts";
 import { ThemeCard, ThemeCardGroup } from "./ThemeCard";
 import { DocumentThemePreview, UiThemePreview } from "./ThemePreviews";
@@ -66,6 +68,7 @@ type PageId =
   | "general"
   | "appearance"
   | "editor"
+  | "spelling"
   | "images"
   | "markdown"
   | "shortcuts"
@@ -134,6 +137,7 @@ export function SettingsDialogView({ initial, onSave, onRequestClose, restartIfS
   // Fields that only apply while their check box is on are disabled with it.
   const [autosaveOn, setAutosaveOn] = useState(initial.autosaveEnabled);
   const [hardWrapOn, setHardWrapOn] = useState(initial.mdHardWrap !== false);
+  const [spellCheckLanguages, setSpellCheckLanguages] = useState(initial.spellCheckLanguages ?? []);
 
   useEffect(() => {
     if (!isElectron()) return;
@@ -165,6 +169,7 @@ export function SettingsDialogView({ initial, onSave, onRequestClose, restartIfS
     { id: "general", title: "General", icon: SettingsIcon },
     { id: "appearance", title: "Appearance", icon: Palette },
     { id: "editor", title: "Editor", icon: SquarePen },
+    { id: "spelling", title: "Spelling", icon: SpellCheck },
     { id: "images", title: "Images", icon: Image },
     { id: "markdown", title: "Markdown", icon: Hash },
     { id: "shortcuts", title: "Keyboard shortcuts", icon: Keyboard, divider: true },
@@ -233,6 +238,7 @@ export function SettingsDialogView({ initial, onSave, onRequestClose, restartIfS
       defaultView: select("defaultView").value as Settings["defaultView"],
       collapseBase64InRawView: input("collapseBase64InRawView").checked,
       spellCheckEnabled: input("spellCheckEnabled").checked,
+      spellCheckLanguages,
       showFrontmatterPanel: input("showFrontmatterPanel").checked,
       maxRetainedTabEditors: numVal(maxRetainedTabEditors, initial.maxRetainedTabEditors),
       mdBulletChar: select("mdBulletChar").value as Settings["mdBulletChar"],
@@ -270,12 +276,13 @@ export function SettingsDialogView({ initial, onSave, onRequestClose, restartIfS
 
   // The accent picker holds the colour it shows as a draft until OK.
   const accentPickerOpen = useRef(false);
+  const dictionaryOpen = useRef(false);
 
   // An update restart quits without saving the form, so it waits for Restart
-  // now while the form has changes, also a colour still open in the picker.
+  // now while the form has changes or a nested editor is still open.
   const restartWhenReady = restartIfSaved &&
     (async (): Promise<boolean> =>
-      !accentPickerOpen.current && JSON.stringify(readForm()) === opened.current && restartIfSaved());
+      !accentPickerOpen.current && !dictionaryOpen.current && JSON.stringify(readForm()) === opened.current && restartIfSaved());
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -551,9 +558,6 @@ export function SettingsDialogView({ initial, onSave, onRequestClose, restartIfS
                         max={20}
                       />
                     </FormRow>
-                    <CheckRow label="Spell check">
-                      <Checkbox name="spellCheckEnabled" defaultChecked={initial.spellCheckEnabled} />
-                    </CheckRow>
                     <CheckRow label="Show frontmatter table">
                       <Checkbox
                         name="showFrontmatterPanel"
@@ -567,6 +571,16 @@ export function SettingsDialogView({ initial, onSave, onRequestClose, restartIfS
                       />
                     </CheckRow>
                   </SettingsBox>
+                </SettingsPage>
+
+                <SettingsPage {...pageProps("spelling")}>
+                  <SpellingSettings
+                    active={page === "spelling"}
+                    initialEnabled={initial.spellCheckEnabled}
+                    languages={spellCheckLanguages}
+                    onLanguagesChange={setSpellCheckLanguages}
+                    onDictionaryOpenChange={(open) => { dictionaryOpen.current = open; }}
+                  />
                 </SettingsPage>
 
                 <SettingsPage {...pageProps("images")}>

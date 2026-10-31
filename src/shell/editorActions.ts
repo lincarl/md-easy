@@ -29,7 +29,7 @@ export interface EditableTarget {
 
 /** Matches the editable surfaces in the app: the two editors and form fields. */
 const EDITABLE_SELECTOR =
-  '.ProseMirror, .cm-content, [contenteditable="true"], input, textarea';
+  '.ProseMirror, .cm-content, [contenteditable="true"], [contenteditable="plaintext-only"], input, textarea';
 
 /** The editable containing `node`, or null when the point isn't over one. */
 export function editableAt(node: Node | null): EditableTarget | null {
@@ -48,8 +48,8 @@ export function editableAt(node: Node | null): EditableTarget | null {
 
 /** Whether `target` currently has a non-empty selection (drives Cut/Copy state). */
 export function hasSelection(target: EditableTarget): boolean {
-  if (target.kind === "field") {
-    const field = target.el as HTMLInputElement | HTMLTextAreaElement;
+  if (target.el instanceof HTMLInputElement || target.el instanceof HTMLTextAreaElement) {
+    const field = target.el;
     return typeof field.selectionStart === "number" && field.selectionStart !== field.selectionEnd;
   }
   const sel = window.getSelection();
@@ -58,8 +58,8 @@ export function hasSelection(target: EditableTarget): boolean {
 
 /** The selected text, used for the link prompt and as a paste fallback. */
 export function selectedText(target: EditableTarget): string {
-  if (target.kind === "field") {
-    const field = target.el as HTMLInputElement | HTMLTextAreaElement;
+  if (target.el instanceof HTMLInputElement || target.el instanceof HTMLTextAreaElement) {
+    const field = target.el;
     return field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0);
   }
   return window.getSelection()?.toString() ?? "";

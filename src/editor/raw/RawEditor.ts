@@ -3,7 +3,7 @@
 
 import { EditorView, basicSetup } from "codemirror";
 import { isolateHistory } from "@codemirror/commands";
-import { ChangeSet, EditorSelection, EditorState, type Text } from "@codemirror/state";
+import { ChangeSet, Compartment, EditorSelection, EditorState, type Text } from "@codemirror/state";
 import {
   SearchQuery,
   findNext as findNextMatch,
@@ -19,6 +19,7 @@ import { differingRuns, type Run } from "../differingRuns";
 import { codeMirrorPresses } from "../codeMirrorPresses";
 import { specialDashHighlight } from "./specialDash";
 import { markdownSource, markdownSourceStyle } from "./markdownSource";
+import { sourceCodeSpellcheck } from "./spellcheck";
 import type { FindCounts, FindOptions } from "../wysiwyg/findEngine";
 import { codeMirrorSpan, revealSpan } from "../wysiwyg/findReveal";
 import type { DropTarget, SourceEdit } from "../wysiwyg/fileDrop";
@@ -345,6 +346,8 @@ export function dropEditChanges(doc: Text, { from, to, insert, assoc }: SourceEd
 
 export class RawEditor {
   private view: EditorView | null = null;
+  /** The source content's explicit preference, separate from code exclusions. */
+  private readonly spellcheck = new Compartment();
   /** Set while `setText` replaces the doc programmatically (split-view mirror
    *  sync, §6.1) so the resulting transaction doesn't echo back through onChange
    *  and clobber the pane that authored the change. */
@@ -379,6 +382,8 @@ export class RawEditor {
           markdownSourceStyle(),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ "aria-label": "Markdown source editor" }),
+          this.spellcheck.of(EditorView.contentAttributes.of({ spellcheck: "false" })),
+          sourceCodeSpellcheck(),
           // Install CodeMirror's search state without exposing its own panel.
           // The app-level capture handler owns Ctrl+F/Ctrl+H and drives this
           // state through the find card; markdownSourceStyle paints the matches.
@@ -399,6 +404,12 @@ export class RawEditor {
 
   getText(): string {
     return this.view ? this.view.state.doc.toString() : "";
+  }
+
+  /** Change prose spelling without rebuilding the editor or enabling code. */
+  setSpellcheck(enabled: boolean): void {
+    if (!this.view || this.view.contentDOM.getAttribute("spellcheck") === String(enabled)) return;
+    this.view.dispatch({ effects: this.spellcheck.reconfigure(EditorView.contentAttributes.of({ spellcheck: String(enabled) })) });
   }
 
   /** Set the text to mirror an edit made in the other split pane (§6.1). Only

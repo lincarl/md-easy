@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { screen } from "@testing-library/react";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { closeContextMenu, showContextMenu, isContextMenuOpen } from "./contextMenu";
 import { MENU_ICONS } from "./menuIcons";
 
@@ -106,6 +106,23 @@ describe("showContextMenu", () => {
     showContextMenu(0, 0, [{ label: "Second", run: () => {} }], "Menu");
     expect(document.querySelectorAll(".md-context-menu")).toHaveLength(1);
     expect(rows()[0].textContent).toBe("Second");
+  });
+
+  it("dismisses stale commands when a shortcut focuses another editor", () => {
+    const editor = document.createElement("textarea");
+    const nextEditor = document.createElement("textarea");
+    document.body.append(editor, nextEditor);
+    editor.focus();
+    const dismissed = vi.fn();
+    showContextMenu(0, 0, [{ label: "Replace word", run: () => {} }], "Edit", dismissed);
+
+    nextEditor.focus();
+
+    expect(isContextMenuOpen()).toBe(false);
+    expect(dismissed).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(nextEditor);
+    editor.remove();
+    nextEditor.remove();
   });
 
   it("focuses its first item and closes immediately on Escape", () => {

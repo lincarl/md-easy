@@ -8,10 +8,13 @@ const commands = new Set<keyof DesktopCommandArgs>([
   "load_session", "save_session", "get_launch_args", "get_default_md_handler", "open_default_apps_settings", "get_system_accent_color",
   "load_settings", "save_settings", "settings_path", "list_printers", "print_webview", "print_webview_to_pdf",
   "update_info", "check_for_updates", "restart_to_update",
+  "get_spellcheck_info", "list_dictionary_words", "add_dictionary_word", "remove_dictionary_word",
+  "spelling_menu_action",
 ]);
 const events = new Set<keyof DesktopEventPayloads>([
   "settings-changed", "file-changed", "open-file-requested", "print-completed", "search-result", "close-requested",
   "history-requested", "update-changed",
+  "spelling-context-menu",
 ]);
 let closeListeners = 0;
 let openListeners = 0;

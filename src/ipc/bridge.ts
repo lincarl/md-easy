@@ -16,6 +16,9 @@ import type {
   SearchSummary,
   Session,
   Snapshot,
+  SpellcheckInfo,
+  SpellingMenuContext,
+  SpellingMenuAction,
   UpdateInfo,
 } from "./contracts";
 
@@ -47,6 +50,11 @@ export interface DesktopCommandArgs {
   load_settings: undefined;
   save_settings: { settings: Settings };
   settings_path: undefined;
+  get_spellcheck_info: undefined;
+  list_dictionary_words: undefined;
+  add_dictionary_word: { word: string };
+  remove_dictionary_word: { word: string };
+  spelling_menu_action: SpellingMenuAction;
   list_printers: undefined;
   print_webview: { options: NativePrintOptions };
   print_webview_to_pdf: { path: string; options: NativePrintOptions };
@@ -83,6 +91,11 @@ export interface DesktopCommandResults {
   load_settings: Settings;
   save_settings: void;
   settings_path: string;
+  get_spellcheck_info: SpellcheckInfo;
+  list_dictionary_words: string[];
+  add_dictionary_word: void;
+  remove_dictionary_word: void;
+  spelling_menu_action: void;
   list_printers: PrinterInfo[];
   print_webview: void;
   print_webview_to_pdf: void;
@@ -95,6 +108,7 @@ export interface DesktopCommandResults {
 export type HistoryCommand = "undo" | "redo";
 
 export interface DesktopEventPayloads {
+  "spelling-context-menu": SpellingMenuContext;
   "settings-changed": Settings;
   "file-changed": { path: string; modifiedMs: number };
   "open-file-requested": { path: string };

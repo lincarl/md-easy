@@ -19,6 +19,7 @@ import { debInstallCommand, discardStagedMsi, installDeb, installedPackageKind, 
 import { Updater, type PendingUpdate } from "./updater";
 import type { PackageKind } from "./updatePlan";
 import { watchPath } from "./watchers";
+import { Spellchecker } from "./spellcheck";
 
 app.setName("Downpad");
 const isolatedData = process.env.DOWNPAD_USER_DATA_DIR;
@@ -41,6 +42,9 @@ const imageAccess = new ImageAccess();
 const searches = new RecentSearch();
 let mainWindow: BrowserWindow | null = null;
 let printing: PrintService | null = null;
+let spellchecker: Spellchecker | null = null;
+let spellingContext: { id: number; params: Electron.ContextMenuParams } | null = null;
+let spellingContextId = 0;
 let unwatchDocument: (() => void) | undefined;
 let unwatchSettings: (() => void) | undefined;
 let closeListenerAttached = false;
@@ -76,6 +80,33 @@ function emit<K extends keyof DesktopEventPayloads>(event: K, payload: DesktopEv
  *  the focus. */
 function requestHistory(command: HistoryCommand): void {
   emit("history-requested", command);
+}
+
+/** Resolve the checker's session after the application window has been created. */
+function spelling(): Spellchecker {
+  if (!spellchecker) throw new Error("The spelling dictionary is not ready.");
+  return spellchecker;
+}
+
+/** Preserve Shift+right-click's native menu and its editor-owned Undo and Redo. */
+function showNativeSpellingMenu(window: BrowserWindow, params: Electron.ContextMenuParams, id: number): void {
+  const items: Electron.MenuItemConstructorOptions[] = params.dictionarySuggestions.slice(0, 6).map((suggestion) => ({
+    label: suggestion, click: () => {
+      if (spellingContext?.id === id) window.webContents.replaceMisspelling(suggestion);
+    },
+  }));
+  if (params.misspelledWord) {
+    items.push({ label: "Add to dictionary", click: () => {
+      if (spellingContext?.id === id) void spelling().add(params.misspelledWord).catch((error: unknown) => {
+        void dialog.showMessageBox(window, { type: "error", message: "Could not add the word.", detail: error instanceof Error ? error.message : String(error) });
+      });
+    } });
+    items.push({ type: "separator" });
+  }
+  items.push(...historyItems(requestHistory, process.platform), { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" });
+  Menu.buildFromTemplate(items).popup({ window, callback: () => {
+    if (spellingContext?.id === id) spellingContext = null;
+  } });
 }
 
 function requestOpen(path: string): void {
@@ -181,14 +212,43 @@ async function invoke(command: unknown, value: unknown): Promise<unknown> {
     case "load_settings": return config.settings();
     case "save_settings": {
       await config.saveSettings(args.settings);
+      const settings = await config.settings();
+      spellchecker?.apply(settings);
       // Deleting an automatic download waits for a running download, which
       // must not hold up the next settings save.
-      if (!(await config.settings()).autoUpdate) {
+      if (!settings.autoUpdate) {
         void updates().automaticUpdatesOff().catch((error: unknown) => console.error("Downpad could not delete the automatic update", error));
       }
       return;
     }
     case "settings_path": return config.settingsPath;
+    case "get_spellcheck_info": return spelling().info();
+    case "list_dictionary_words": return spelling().words();
+    case "add_dictionary_word": return spelling().add(string(args, "word"));
+    case "remove_dictionary_word": return spelling().remove(string(args, "word"));
+    case "spelling_menu_action": {
+      const id = number(args, "contextId");
+      const action = string(args, "action");
+      if (action === "dismiss") {
+        if (spellingContext?.id === id) spellingContext = null;
+        return;
+      }
+      if (!mainWindow || !spellingContext || spellingContext.id !== id) throw new Error("This spelling menu has closed.");
+      const { params } = spellingContext;
+      if (action === "native") return showNativeSpellingMenu(mainWindow, params, id);
+      if (action === "replace") {
+        const suggestion = string(args, "suggestion");
+        if (!params.misspelledWord || !params.dictionarySuggestions.includes(suggestion)) throw new Error("This spelling suggestion is unavailable.");
+        spellingContext = null;
+        mainWindow.webContents.replaceMisspelling(suggestion);
+        return;
+      }
+      if (action === "add" && params.misspelledWord) {
+        spellingContext = null;
+        return spelling().add(params.misspelledWord);
+      }
+      throw new Error("Unknown spelling menu action.");
+    }
     case "get_recent_files": return config.recent(args.limit === null || args.limit === undefined ? undefined : number(args, "limit"));
     case "record_file_opened": return config.recordOpened(path(args), number(args, "openedAtMs"));
     case "remove_recent": return config.removeRecent(path(args));
@@ -405,6 +465,8 @@ async function createWindow(): Promise<void> {
     },
   });
   mainWindow = window;
+  spellchecker = new Spellchecker(window.webContents.session, process.platform, () => app.getPreferredSystemLanguages());
+  spellchecker.apply(await config.settings());
   printing = new PrintService(window, (result) => emit("print-completed", result));
   window.webContents.setWindowOpenHandler(({ url }) => {
     try { void shell.openExternal(externalUrl(url)).catch((error: unknown) => console.error("Downpad could not open link", error)); }
@@ -420,17 +482,12 @@ async function createWindow(): Promise<void> {
   window.webContents.on("will-redirect", (event, url) => { if (!trustedPage(url, entryUrl)) event.preventDefault(); });
   window.webContents.on("will-attach-webview", (event) => { event.preventDefault(); });
   window.webContents.on("context-menu", (_event, params) => {
-    if (!params.isEditable) return;
-    const items: Electron.MenuItemConstructorOptions[] = params.dictionarySuggestions.slice(0, 6).map((suggestion) => ({
-      label: suggestion, click: () => window.webContents.replaceMisspelling(suggestion),
-    }));
-    if (params.misspelledWord) {
-      items.push({ label: "Add to dictionary", click: () => window.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) });
-      items.push({ type: "separator" });
-    }
-    // Undo and Redo run the focused editor's own history (menus.ts).
-    items.push(...historyItems(requestHistory, process.platform), { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" });
-    Menu.buildFromTemplate(items).popup({ window });
+    spellingContext = { id: ++spellingContextId, params };
+    const zoom = window.webContents.getZoomFactor();
+    emit("spelling-context-menu", {
+      id: spellingContext.id, x: params.x / zoom, y: params.y / zoom,
+      word: params.misspelledWord, suggestions: params.dictionarySuggestions.slice(0, 6),
+    });
   });
   window.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) => {
     callback(contents === window.webContents && clipboardPermission(permission, details.requestingUrl, entryUrl, details.isMainFrame));
@@ -446,6 +503,7 @@ async function createWindow(): Promise<void> {
   // Subscriptions belong to the current renderer, which disappears on reload
   // or crash. Keep new file requests queued until the replacement subscribes.
   const resetRendererListeners = (): void => {
+    spellingContext = null;
     closeListenerAttached = false;
     openListenerAttached = false;
   };
@@ -454,6 +512,7 @@ async function createWindow(): Promise<void> {
     if (details.isMainFrame && !details.isSameDocument) resetRendererListeners();
   });
   window.on("closed", () => {
+    spellingContext = null;
     unwatchDocument?.(); unwatchDocument = undefined;
     mainWindow = null; printing = null; closeListenerAttached = false; openListenerAttached = false;
   });
@@ -572,6 +631,7 @@ async function start(): Promise<void> {
   });
   unwatchSettings = watchPath(config.settingsPath, () => {
     void config.settings().then((settings) => {
+      spellchecker?.apply(settings);
       emit("settings-changed", settings);
       if (!settings.autoUpdate) {
         void updater?.automaticUpdatesOff().catch((error: unknown) => console.error("Downpad could not delete the automatic update", error));

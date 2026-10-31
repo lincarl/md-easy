@@ -32,6 +32,11 @@ export function normalizeSettings(input: unknown): Settings {
       settings.defaultView = value === "raw" ? "split" : "document";
     } else if (key === "mdHardWrap") {
       if (value === false || (typeof value === "number" && Number.isInteger(value) && value > 0)) target[key] = value;
+    } else if (key === "spellCheckLanguages") {
+      if (Array.isArray(value) && value.every((language: unknown) =>
+        typeof language === "string" && /^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$/.test(language))) {
+        settings.spellCheckLanguages = [...new Set(value)];
+      }
     } else if (typeof value === typeof DEFAULT_SETTINGS[key] &&
       (typeof value !== "number" || (Number.isFinite(value) && value >= 0)) &&
       (!ENUMS[key] || ENUMS[key]?.includes(value))) {

@@ -147,3 +147,26 @@ export interface UpdateInfo {
   lastCheckMs: number | null;
   state: UpdateState;
 }
+
+/** Native spelling capabilities and the languages currently used by the checker. */
+export interface SpellcheckInfo {
+  availableLanguages: string[];
+  activeLanguages: string[];
+  systemLanguages: string[];
+  languageSelectionSupported: boolean;
+  dictionarySharedWithSystem: boolean;
+}
+
+/** One native right-click result. Actions must reference this context's identifier. */
+export interface SpellingMenuContext {
+  id: number;
+  x: number;
+  y: number;
+  word: string;
+  suggestions: string[];
+}
+
+/** Limit spelling actions to the current native context menu. */
+export type SpellingMenuAction =
+  | { contextId: number; action: "replace"; suggestion: string }
+  | { contextId: number; action: "add" | "dismiss" | "native" };

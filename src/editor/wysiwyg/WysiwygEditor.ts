@@ -24,6 +24,7 @@ import { Plugin, Selection, type EditorState, type Transaction } from "@milkdown
 import { closeHistory } from "@milkdown/kit/prose/history";
 import { dropIndicatorPlugin } from "@milkdown/kit/plugin/cursor";
 import type { EditorView } from "@milkdown/kit/prose/view";
+import { EditorView as CodeMirrorView } from "@codemirror/view";
 import { createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
@@ -75,6 +76,7 @@ import { toolbarBlur } from "./toolbarBlur";
 import { selectionToolbar } from "./selectionToolbar";
 import { decidedDoc, decideTypedMark, mathDelimiters } from "./mathDelimiters";
 import { linkEdges } from "./linkEdges";
+import { excludeCodeBlockSpellcheck, excludeInlineCodeSpellcheck } from "./spellcheck";
 import {
   blockEdge,
   dropPosition,
@@ -254,7 +256,7 @@ export class WysiwygEditor {
         // of a line on a press on its line number.
         [Crepe.Feature.CodeMirror]: {
           renderPreview: renderMermaidPreview,
-          extensions: [codeBlockFindHighlights, codeBlockClicks],
+          extensions: [codeBlockFindHighlights, codeBlockClicks, CodeMirrorView.contentAttributes.of({ spellcheck: "false" })],
         },
         // Display linked images + missing-image placeholder/relocate (§5.5).
         [Crepe.Feature.ImageBlock]: imageConfig,
@@ -280,6 +282,8 @@ export class WysiwygEditor {
     });
     // Tell screen readers whether each task is done.
     this.crepe.editor.config(labelTaskBoxes);
+    this.crepe.editor.config(excludeInlineCodeSpellcheck);
+    this.crepe.editor.use(excludeCodeBlockSpellcheck);
     // Keep standalone images' alt text, which Crepe overwrites with its resize
     // ratio. Must follow the ImageBlock feature so this node spec replaces Crepe's.
     this.crepe.editor.use(imageBlockAltSchema);

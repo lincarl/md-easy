@@ -193,6 +193,8 @@ export interface Settings {
   defaultView: EditorLayout;
   collapseBase64InRawView: boolean;
   spellCheckEnabled: boolean;
+  /** Languages checked together. An empty list follows the system languages. */
+  spellCheckLanguages: string[];
   /** Whether a leading YAML `---` block is shown above the WYSIWYG editor as a
    *  VS Code-style editable key/value table (spec §5.17). On by default. Either
    *  way the YAML is split off and kept byte-for-byte (never fed through the

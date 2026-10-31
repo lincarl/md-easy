@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ElectronBridge } from "../src/ipc/bridge";
+import { DEFAULT_SETTINGS } from "../src/settings/defaults";
 
 type Handler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown;
 
@@ -13,7 +14,17 @@ const native = vi.hoisted(() => {
       mainFrame: { url: "" },
       setWindowOpenHandler: vi.fn(),
       on: vi.fn(),
-      session: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn() },
+      session: {
+        setPermissionRequestHandler: vi.fn(),
+        setPermissionCheckHandler: vi.fn(),
+        availableSpellCheckerLanguages: ["en-US"],
+        getSpellCheckerLanguages: vi.fn(() => ["en-US"]),
+        setSpellCheckerLanguages: vi.fn(),
+        setSpellCheckerEnabled: vi.fn(),
+        listWordsInSpellCheckerDictionary: vi.fn(async () => []),
+        addWordToSpellCheckerDictionary: vi.fn(() => true),
+        removeWordFromSpellCheckerDictionary: vi.fn(() => true),
+      },
     },
     on: vi.fn(),
     once: vi.fn(),
@@ -35,6 +46,7 @@ vi.mock("electron", () => ({
     setName: vi.fn(),
     getPath: () => "dev-temp/document-preferences/dialog-ipc",
     getVersion: () => "0.0.0",
+    getPreferredSystemLanguages: () => ["en-US"],
     on: vi.fn(),
     requestSingleInstanceLock: () => true,
     whenReady: async () => {},
@@ -63,7 +75,7 @@ vi.mock("./storage", () => ({
     directory = "dev-temp/document-preferences/dialog-ipc";
     settingsPath = "dev-temp/document-preferences/dialog-ipc/settings.toml";
     async initialize() {}
-    async settings() { return { autoUpdate: false }; }
+    async settings() { return { ...DEFAULT_SETTINGS, autoUpdate: false }; }
   },
   RecentSearch: class {},
 }));

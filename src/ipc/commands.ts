@@ -15,6 +15,7 @@ import type {
   SearchSummary,
   Session,
   Snapshot,
+  SpellcheckInfo,
   UpdateInfo,
 } from "./contracts";
 
@@ -222,6 +223,26 @@ export function saveSettings(settings: Settings): Promise<void> {
 
 export function settingsPath(): Promise<string> {
   return invoke("settings_path");
+}
+
+/** Read the native checker's supported and active languages. */
+export function getSpellcheckInfo(): Promise<SpellcheckInfo> {
+  return invoke("get_spellcheck_info");
+}
+
+/** List persistent words added to the native custom dictionary. */
+export function listDictionaryWords(): Promise<string[]> {
+  return invoke("list_dictionary_words");
+}
+
+/** Accept a word in the native custom dictionary immediately. */
+export function addDictionaryWord(word: string): Promise<void> {
+  return invoke("add_dictionary_word", { word });
+}
+
+/** Remove a custom word so the native checker can flag it again. */
+export function removeDictionaryWord(word: string): Promise<void> {
+  return invoke("remove_dictionary_word", { word });
 }
 
 // ── Printing (§5.21) ──────────────────────────────────────────────────────

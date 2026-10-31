@@ -102,13 +102,14 @@ export class AppRuntime {
     // Replace the native WebView right-click menu with Downpad's own (§6.1). It
     // offers the editing commands over editable text and the document actions
     // (Copy as Markdown, Print) everywhere, instead of the browser-level entries
-    // the native menu carries. Shift+right-click still opens the native menu so
-    // Chromium's spell-check suggestions stay reachable (§5.14).
+    // the native menu carries. Electron supplies spelling choices for the
+    // ordinary menu; Shift+right-click keeps the native editing menu (§5.14).
     this.cleanups.push(installDocumentContextMenu({
       hasDocument: () => this.store.get().activeTabId !== null,
       print: () => void this.printActiveDocument(),
       copyMarkdown: () => void this.copyMarkdown(),
       insertLink: (href) => this.editorHost.insertLink(href),
+      reportError: (message) => this.store.set({ banner: { kind: "error", message } }),
     }));
 
     // A Shift+press outside the element that has focus is a plain click, so

@@ -1,17 +1,41 @@
-// Spell check toggle (spec §5.14). We don't ship a dictionary — this just flips
-// the `spellcheck` attribute on the editor's editable elements so Chromium's
-// built-in checker (red squiggles + right-click suggestions) turns on/off.
-//
-// The attribute is inheritable, so setting it on the editor host covers both the
-// WYSIWYG (ProseMirror) and raw (CodeMirror) editables. Crepe's code blocks are
-// CodeMirror instances (already not spell-checked); inline-code exclusion is a
-// later refinement.
+import type { Ctx } from "@milkdown/kit/ctx";
+import { inlineCodeAttr } from "@milkdown/kit/preset/commonmark";
+import type { Node } from "@milkdown/kit/prose/model";
+import { Plugin } from "@milkdown/kit/prose/state";
+import { Decoration, DecorationSet } from "@milkdown/kit/prose/view";
+import { $prose } from "@milkdown/kit/utils";
 
-const EDITABLE_SELECTORS = '.ProseMirror, .cm-content, [contenteditable="true"]';
-
-/** Apply the spell-check setting to every editable element under `root`. */
+/** Set the inherited spelling preference for document prose and frontmatter.
+ *  Code owns its exclusions through editor attributes. The Markdown pane
+ *  applies the preference through RawEditor.setSpellcheck because CodeMirror
+ *  supplies its own content attribute. */
 export function applySpellcheck(root: HTMLElement, enabled: boolean): void {
-  const value = String(enabled);
-  root.setAttribute("spellcheck", value);
-  root.querySelectorAll(EDITABLE_SELECTORS).forEach((el) => el.setAttribute("spellcheck", value));
+  root.setAttribute("spellcheck", String(enabled));
 }
+
+/** Exclude inline code when Milkdown renders it, including newly typed spans. */
+export function excludeInlineCodeSpellcheck(ctx: Ctx): void {
+  ctx.update(inlineCodeAttr.key, (previous) => (mark) => ({ ...previous(mark), spellcheck: "false" }));
+}
+
+/** Exclude entire code blocks, including their offscreen placeholders. */
+function codeBlocks(doc: Node): DecorationSet {
+  const decorations: Decoration[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.spec.code) decorations.push(Decoration.node(pos, pos + node.nodeSize, { spellcheck: "false" }));
+    return !node.isTextblock;
+  });
+  return DecorationSet.create(doc, decorations);
+}
+
+/** Let ProseMirror maintain exclusions on Crepe's code block node views. */
+export const excludeCodeBlockSpellcheck = $prose(() => {
+  const plugin: Plugin<DecorationSet> = new Plugin<DecorationSet>({
+    state: {
+      init: (_, state) => codeBlocks(state.doc),
+      apply: (transaction, previous) => transaction.docChanged ? codeBlocks(transaction.doc) : previous,
+    },
+    props: { decorations: (state) => plugin.getState(state) },
+  });
+  return plugin;
+});

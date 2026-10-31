@@ -72,6 +72,14 @@ Downpad reopens the documents that were open when it last closed, in the same ta
 
 ## Appearance and preferences
 
+Settings > Spelling enables spell checking for prose in Document, Markdown, and Split views. Inline code and code blocks are excluded, including newly typed code. Normal right-click on a misspelling offers corrections and Add to dictionary before the existing editing commands. Corrections preserve surrounding formatting and support Undo and Redo. Shift+right-click keeps the native editing menu.
+
+Spelling marks follow the native checker's timing. Text loaded into an automatically focused editor may wait for typing or for the user to focus the editor again before it is checked.
+
+On Windows and Linux, choose several spelling languages or follow the system languages. The choice is saved in `spellCheckLanguages`, with an empty list meaning system languages. Unsupported saved languages remain in the preferences but are not used on that device. If none are supported, the checker uses system languages. macOS manages its languages through System Settings. Language dictionaries download when first needed, and spelling is checked locally without sending document text to a spelling service.
+
+Manage dictionary lists words added to Downpad's native dictionary and allows adding or removing them. Changes take effect immediately and survive restart, independently of Settings Save or Cancel. Existing custom words remain available. On Windows and macOS, adding or removing a word also updates the operating system's custom dictionary. Browser development builds retain browser spelling but require the installed app for these language and dictionary controls.
+
 The interface shares the look of Mervin PDF. Users can choose light, dark, or system themes; adjust the accent color, document width, font, and text size; select the default editor view; and configure image storage, Markdown serialization, spell checking, recovery, and autosave behavior.
 
 The document's side margins narrow in a narrow window or Split pane, and with a fixed document width below 688px in any window, so its text keeps a readable width.

@@ -617,7 +617,9 @@ export class EditorHost implements FindController {
   /** (Re)apply the spell-check setting to every editor under the host (§5.14). */
   applySpellcheck(): void {
     if (this.disposed) return;
-    applySpellcheck(this.root, this.store.get().settings.spellCheckEnabled);
+    const enabled = this.store.get().settings.spellCheckEnabled;
+    applySpellcheck(this.root, enabled);
+    for (const pane of this.panes.values()) pane.raw?.setSpellcheck(enabled);
   }
 
   // ── FindController (§5.13): the find card routes to the visible document
